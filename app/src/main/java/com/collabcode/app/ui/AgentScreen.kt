@@ -517,7 +517,7 @@ private fun ToolView(card: ToolCard, engine: AgentEngine) {
                         Modifier.fillMaxWidth()
                             .clip(RoundedCornerShape(8.dp))
                             .border(1.dp, pal.bd, RoundedCornerShape(8.dp))
-                            .background(pal.bg)
+                            .background(if (card.title == "run_command") Color(0xFF0B0E12) else pal.bg)
                             .heightIn(max = 260.dp)
                             .verticalScroll(rememberScrollState())
                             .horizontalScroll(rememberScrollState())
@@ -525,6 +525,7 @@ private fun ToolView(card: ToolCard, engine: AgentEngine) {
                         fontFamily = FontFamily.Monospace,
                         fontSize = 12.sp,
                         lineHeight = 16.sp,
+                        color = if (card.title == "run_command") Color(0xFFB5F5C0) else pal.tx,
                     )
                 }
                 if (card.pending) {
@@ -716,6 +717,7 @@ private fun SettingsDialog(engine: AgentEngine, onClose: () -> Unit) {
     var askW by remember { mutableStateOf(c0.askW) }
     var askB by remember { mutableStateOf(c0.askB) }
     var askH by remember { mutableStateOf(c0.askH) }
+    var askT by remember { mutableStateOf(c0.askT) }
     var fs by remember { mutableStateOf(c0.fs) }
     var confirmClear by remember { mutableStateOf(false) }
 
@@ -747,6 +749,7 @@ private fun SettingsDialog(engine: AgentEngine, onClose: () -> Unit) {
             CheckRow("Ask before committing files", askW) { askW = it }
             CheckRow("Ask before starting builds", askB) { askB = it }
             CheckRow("Ask before non-GET API calls", askH) { askH = it }
+            CheckRow("Ask before terminal commands", askT) { askT = it }
             SectionLabel("Appearance")
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 listOf(14 to "Small", 15 to "Normal", 17 to "Large").forEach { (v, label) ->
@@ -780,6 +783,7 @@ private fun SettingsDialog(engine: AgentEngine, onClose: () -> Unit) {
                             askW = askW,
                             askB = askB,
                             askH = askH,
+                            askT = askT,
                             fs = fs,
                             theme = engine.cfg.theme,
                         )

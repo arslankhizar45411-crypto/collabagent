@@ -42,6 +42,14 @@ import com.collabcode.app.core.AnsiScreen
 import com.collabcode.app.terminal.TerminalEngine
 import com.collabcode.app.terminal.TerminalSetup
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import android.content.Context
+import android.net.Uri
+import android.provider.OpenableColumns
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import java.io.File
 
 private val TermBg = Color(0xFF0F1115)
 private val TermBar = Color(0xFF171A20)
@@ -70,6 +78,10 @@ fun TerminalPage() {
     var widthPx by remember { mutableStateOf(0) }
     val cols = if (widthPx > 0) ((widthPx - 2 * padPx) / charW).toInt().coerceIn(20, 200) else 60
     var confirmReset by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
+        scope.launch { withContext(Dispatchers.IO) { uris.forEach { copyIntoProject(context, it) } } }
+    }
 
     val setup = TerminalEngine.setup
 
@@ -84,7 +96,7 @@ fun TerminalPage() {
             is TerminalSetup.Failed -> FailedView(setup.message) {
                 TerminalEngine.open(context, cols, TERM_ROWS)
             }
-            else -> ShellView(cols = cols, style = style, onReset = { confirmReset = true })
+            else -> ShellView(cols = cols, style = style, onReset = { confirmReset = true }, onUpload = { picker.launch("*/*") })
         }
     }
 
@@ -146,7 +158,7 @@ private fun FailedView(message: String, onRetry: () -> Unit) {
 }
 
 @Composable
-private fun ColumnScope.ShellView(cols: Int, style: TextStyle, onReset: () -> Unit) {
+private fun ColumnScope.ShellView(cols: Int, style: TextStyle, onReset: () -> Unit, onUpload: () -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val screen = TerminalEngine.screen
@@ -177,11 +189,12 @@ private fun ColumnScope.ShellView(cols: Int, style: TextStyle, onReset: () -> Un
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            if (alive) "Debian · running" else "Debian · stopped",
+            if (alive) "root@collab:~/project · running" else "root@collab:~/project · stopped",
             color = TermMuted,
             fontSize = 12.sp,
             modifier = Modifier.weight(1f)
         )
+        TextButton(onClick = onUpload) { Text("Upload") }
         TextButton(onClick = { TerminalEngine.restart(context, cols, TERM_ROWS) }) { Text("Restart") }
         TextButton(onClick = onReset) { Text("Reset") }
     }
@@ -345,4 +358,20 @@ private fun buildLine(view: AnsiScreen.LineView, cursorCol: Int): AnnotatedStrin
             i = j
         }
     }
+}
+
+/** Copies a picked file into the project folder, which is /root/project inside the terminal. */
+private fun copyIntoProject(ctx: Context, uri: Uri) {
+    val resolver = ctx.contentResolver
+    var name = uri.lastPathSegment?.substringAfterLast('/') ?: "upload"
+    resolver.query(uri, null, null, null, null)?.use { c ->
+        if (c.moveToFirst()) {
+            val i = c.getColumnIndex(OpenableColumns.DISPLAY_NAME)
+            if (i >= 0) name = c.getString(i) ?: name
+        }
+    }
+    val safe = name.replace(Regex("[^A-Za-z0-9._-]"), "_").take(80).ifEmpty { "upload" }
+    val dest = File(ctx.filesDir, "project/" + safe)
+    dest.parentFile?.mkdirs()
+    resolver.openInputStream(uri)?.use { input -> dest.outputStream().use { input.copyTo(it) } }
 }

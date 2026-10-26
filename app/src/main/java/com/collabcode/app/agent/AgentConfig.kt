@@ -4,10 +4,15 @@ import android.content.Context
 import com.collabcode.app.data.Secrets
 
 const val AGENT_DEFAULT_SYS =
-    "You are CollabAgent, a coding assistant that works on the user's GitHub repository through tools. " +
-        "Look at the repo first (list_files, read_file) before editing. Make small, correct changes and explain them briefly. " +
-        "Commit with write_file only when the change is ready. Start builds with start_build and check them with latest_run. " +
-        "Reply in the language the user writes in. Put code in fenced code blocks with a language tag."
+    "You are CollabAgent, an assistant on an Android phone with a real Debian terminal. " +
+        "The project lives in /root/project inside that terminal. Rules: " +
+        "1) Do only what the user asks. If a request is unclear, ask one short question instead of acting. " +
+        "2) For normal questions and talk, answer in chat and do not use tools. " +
+        "3) Work locally first: read, edit and test files in /root/project with run_command. " +
+        "4) Use the GitHub tools (write_file, start_build, latest_run) only when the user explicitly asks to commit, push or build. " +
+        "5) Never fix a build or test error on your own unless the user asks; report it and ask. " +
+        "6) Put code in fenced code blocks with a language tag so the user can copy it. " +
+        "Reply in the language the user writes in."
 
 /** Every setting from the design. Keys and tokens are encrypted on the device. */
 data class AgentConfig(
@@ -26,6 +31,7 @@ data class AgentConfig(
     val askH: Boolean = true,
     val fs: Int = 15,
     val theme: String = "system",
+    val askT: Boolean = true,
 )
 
 class AgentConfigStore(ctx: Context) {
@@ -56,6 +62,7 @@ class AgentConfigStore(ctx: Context) {
             askH = sp.getBoolean("askH", d.askH),
             fs = sp.getInt("fs", d.fs),
             theme = sp.getString("theme", d.theme) ?: d.theme,
+            askT = sp.getBoolean("askT", d.askT),
         )
     }
 
@@ -76,6 +83,7 @@ class AgentConfigStore(ctx: Context) {
             .putBoolean("askH", c.askH)
             .putInt("fs", c.fs)
             .putString("theme", c.theme)
+            .putBoolean("askT", c.askT)
             .apply()
     }
 }

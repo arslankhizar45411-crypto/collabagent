@@ -267,7 +267,7 @@ class AgentEngine(app: Application) : AndroidViewModel(app) {
         card.status = "Running"
         card.kind = "warn"
         return try {
-            val out = AgentTools(cfg).run(c.name, a, card) { cd, need -> ask(cd, need) }
+            val out = AgentTools(cfg, getApplication()).run(c.name, a, card) { cd, need -> ask(cd, need) }
             if (card.status != "Denied") {
                 card.status = "Done"
                 card.kind = "ok"

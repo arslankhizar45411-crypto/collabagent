@@ -1,6 +1,8 @@
 package com.collabcode.app.agent
 
+import android.content.Context
 import android.util.Base64
+import com.collabcode.app.terminal.TerminalEngine
 import com.collabcode.app.data.Http
 import com.collabcode.app.data.HttpResult
 import kotlinx.coroutines.Dispatchers
@@ -26,6 +28,14 @@ object AgentToolDefs {
                 "path" to "File path",
                 "content" to "Full new file content",
                 "message" to "Commit message",
+            )
+        )
+        arr.put(
+            fn(
+                "run_command",
+                "Run a shell command in the Debian terminal on the phone. The project folder is /root/project. " +
+                    "Use it to list, read and edit files, run tests and install packages.",
+                "command" to "Shell command to run",
             )
         )
         arr.put(fn("start_build", "Start the build workflow on the working branch."))
@@ -58,7 +68,7 @@ object AgentToolDefs {
 }
 
 /** Runs the tools. Network calls run on the IO thread. Card updates stay on the caller's thread. */
-class AgentTools(private val cfg: AgentConfig) {
+class AgentTools(private val cfg: AgentConfig, private val ctx: Context) {
     private val host = "api.github.com"
 
     suspend fun run(name: String, a: JSONObject, card: ToolCard, ask: suspend (ToolCard, Boolean) -> Boolean): String =
@@ -69,6 +79,7 @@ class AgentTools(private val cfg: AgentConfig) {
             "start_build" -> startBuild(card, ask)
             "latest_run" -> latestRun()
             "http_request" -> httpRequest(a, card, ask)
+            "run_command" -> runCommand(a, card, ask)
             else -> "Unknown tool: $name"
         }
 
@@ -170,6 +181,21 @@ class AgentTools(private val cfg: AgentConfig) {
         val concl = if (run.isNull("conclusion")) "" else run.optString("conclusion")
         val status = if (concl.isEmpty()) run.optString("status") else concl
         return "${run.optString("name")}: $status\n${run.optString("html_url")}\n(APK is under Artifacts on that page)"
+    }
+
+    private suspend fun runCommand(a: JSONObject, card: ToolCard, ask: suspend (ToolCard, Boolean) -> Boolean): String {
+        val command = a.optString("command").trim()
+        if (command.isEmpty()) throw IOException("command is required")
+        card.out = "$ " + command
+        if (!ask(card, cfg.askT)) return "The user denied this command. Ask what they want instead."
+        if (!TerminalEngine.isInstalled(ctx)) {
+            throw IOException("Debian is not set up yet. Open Terminal once to set it up, then try again.")
+        }
+        val r = TerminalEngine.exec(ctx, "cd /root/project && " + command)
+        val text = r.output.trim().ifEmpty { "(no output)" }
+        val status = if (r.timedOut) "stopped: time limit" else "exit " + r.exit
+        card.out = "$ " + command + "\n" + text + "\n[" + status + "]"
+        return "Exit " + r.exit + (if (r.timedOut) " (timed out)" else "") + "\n" + text.take(6000)
     }
 
     private suspend fun httpRequest(a: JSONObject, card: ToolCard, ask: suspend (ToolCard, Boolean) -> Boolean): String {
