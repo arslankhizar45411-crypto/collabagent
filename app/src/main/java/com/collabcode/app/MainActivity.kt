@@ -46,7 +46,14 @@ fun CollabCodeApp() {
         }
     }
     val agent: AgentEngine = viewModel()
-    AgentRoot(agent)
+
+    var showSplash by remember { mutableStateOf(true) }
+
+    if (showSplash) {
+        SplashScreen(onFinish = { showSplash = false })
+    } else {
+        AgentRoot(agent)
+    }
 }
 
 @Composable
